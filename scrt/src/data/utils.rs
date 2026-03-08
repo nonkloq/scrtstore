@@ -14,6 +14,8 @@ pub enum DataError {
     Parse(String),
     ChecksumMismatch,
     Cipher(CipherError),
+    LoadError(String),
+    SaveError(String),
 }
 
 impl std::fmt::Display for DataError {
@@ -22,6 +24,8 @@ impl std::fmt::Display for DataError {
             DataError::Parse(s) => write!(f, "parse failed: {s}"),
             DataError::ChecksumMismatch => write!(f, "checksum mismatch"),
             DataError::Cipher(e) => write!(f, "{e}"),
+            DataError::LoadError(s) => write!(f, "load failed: {s}"),
+            DataError::SaveError(s) => write!(f, "save failed: {s}"),
         }
     }
 }

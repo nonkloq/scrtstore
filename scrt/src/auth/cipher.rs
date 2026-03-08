@@ -91,6 +91,14 @@ macro_rules! rand_arr {
     }};
 }
 
+#[macro_export]
+macro_rules! rand_key_hex {
+    ($size:expr) => {{
+        let bytes = rand_arr!($size);
+        bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()
+    }};
+}
+
 impl EncryptedData {
     pub fn decrypt(&self, password: &str) -> Result<String, CipherError> {
         let dek: [u8; 32] = derive_key(password, &self.salt[..]);

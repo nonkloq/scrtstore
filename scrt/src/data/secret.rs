@@ -115,11 +115,11 @@ impl Serialized for SecretType {
 }
 
 impl Secret {
-    // For `preview_secret`, return a string:
-    // - For Partial: show start and end (e.g., "abc...xyz" for "abcxyz")
-    // - For Hidden: "***"
-    // - For View: return as is
-    // - For PassRequired: "**pass required**"
+    /// Get Preview of the content
+    /// - For Hidden: "***"
+    /// - For View: return as is
+    /// - For Partial: show start and end (e.g., "abc...xyz" for "abcxyz")
+    /// - For PassRequired: "**pass required**"
     pub fn preview_secret(&self) -> String {
         match &self.secret {
             SecretType::Partial(s) => {
@@ -138,9 +138,7 @@ impl Secret {
         }
     }
 
-    // For `get_data`:
-    // - Partial/Hidden/View: return the string value
-    // - PassRequired: use password to decrypt
+    /// Get the secret content
     pub fn get_data(&self, password: Option<&str>) -> Result<String, DataError> {
         match &self.secret {
             SecretType::Partial(s) | SecretType::Hidden(s) | SecretType::View(s) => Ok(s.clone()),
@@ -216,6 +214,48 @@ impl Serialized for SecretEntry {
 }
 
 impl Encrypted for SecretEntry {}
+
+impl SecretType {
+    pub fn new_hidden(content: String) -> Self {
+        Self::Hidden(content)
+    }
+
+    pub fn new_partial(content: String) -> Self {
+        Self::Partial(content)
+    }
+
+    pub fn new_view(content: String) -> Self {
+        Self::View(content)
+    }
+
+    pub fn new_passrequired(content: String, key: &str) -> Self {
+        Self::PassRequired(EncryptedData::encrypt(key, &content.as_bytes()))
+    }
+
+    pub fn get_name(&self) -> &'static str {
+        match self {
+            SecretType::Hidden(_) => STYPE_TAG_HIDDEN,
+            SecretType::Partial(_) => STYPE_TAG_PARTIAL,
+            SecretType::View(_) => STYPE_TAG_VIEW,
+            SecretType::PassRequired(_) => STYPE_TAG_PASS_REQUIRED,
+        }
+    }
+
+    pub fn new(content: String, name: &'static str, key: &str) -> Result<Self, DataError> {
+        match name {
+            STYPE_TAG_HIDDEN => Ok(Self::Hidden(content)),
+            STYPE_TAG_PARTIAL => Ok(Self::Partial(content)),
+            STYPE_TAG_VIEW => Ok(Self::View(content)),
+            STYPE_TAG_PASS_REQUIRED => Ok(Self::PassRequired(EncryptedData::encrypt(
+                key,
+                content.as_bytes(),
+            ))),
+            _ => Err(DataError::Parse(format!(
+                "SecretType::new: unknown type tag '{name}'",
+            ))),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

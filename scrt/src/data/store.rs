@@ -3,8 +3,9 @@ use crate::auth::pass::PassRing;
 use crate::auth::twofa::{TwoFAData, TwoFAMethod};
 use crate::data::utils::{CREDS_SEP, DataError, STORE_SEP};
 use crate::data::vault::Vault;
-use crate::rand_arr;
+use crate::{rand_arr, rand_key_hex};
 
+const MASTER_KEY_SIZE: usize = 32;
 pub struct Credentials {
     keys: PassRing,
     v2fa: TwoFAData,
@@ -12,19 +13,14 @@ pub struct Credentials {
 
 pub struct ScrtStore {
     pub checksum: String,
-    pub creds: Credentials,
+    creds: Credentials,
     pub data: EncryptedData,
-}
-
-fn random_master_key_hex() -> String {
-    let bytes: [u8; 32] = rand_arr!(32);
-    bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()
 }
 
 impl Credentials {
     /// Build credentials and master key from password and pass phrase (2FA). Private.
     fn new(password: &str, pass_phrase: &str) -> (Self, String) {
-        let master_key: String = random_master_key_hex();
+        let master_key: String = rand_key_hex!(MASTER_KEY_SIZE);
         let mut two_fa: TwoFAData = TwoFAData::default();
         let secret_key: String = two_fa.add_method(TwoFAMethod::PassPhrase, pass_phrase);
         let mut pass_ring: PassRing = PassRing::default();
@@ -34,6 +30,34 @@ impl Credentials {
             v2fa: two_fa,
         };
         (creds, master_key)
+    }
+
+    pub fn get_master_key(
+        &self,
+        method: TwoFAMethod,
+        password: String,
+        verification_data: String,
+    ) -> Result<String, DataError> {
+        let secret: String = self.v2fa.get_key(method, &verification_data)?;
+        let key = self.keys.get_master_key(&password, &secret)?;
+        Ok(key)
+    }
+
+    pub fn add_new_method(
+        &mut self,
+        password: String,
+
+        new_method: TwoFAMethod,
+        new_verification_data: String,
+
+        method: TwoFAMethod,
+        verification_data: String,
+    ) -> Result<(), DataError> {
+        let master_key = self.get_master_key(method, password.clone(), verification_data)?;
+
+        let secret = self.v2fa.add_method(new_method, &new_verification_data);
+        self.keys.add_password(&master_key, &password, &secret);
+        Ok(())
     }
 }
 
@@ -110,22 +134,46 @@ impl ScrtStore {
         }
     }
 
-    pub fn unlock(
+    pub fn get_master_key(
         &self,
+        method: TwoFAMethod,
         password: String,
+        verification_data: String,
+    ) -> Result<String, DataError> {
+        self.creds
+            .get_master_key(method, password, verification_data)
+    }
+
+    pub fn unlock(&self, master_key: &str) -> Result<Vault, DataError> {
+        Vault::decrypt(master_key, &self.data)
+    }
+
+    // Add or update the 2FA Method
+    pub fn add_2fa_method(
+        &mut self,
+
+        password: String,
+
+        new_method: TwoFAMethod,
+        new_verification_data: String,
+
         method: TwoFAMethod,
         verification_data: String,
-    ) -> Result<Vault, DataError> {
-        let secret: String = self.creds.v2fa.get_key(method, &verification_data)?;
-        let master_key: String = self.creds.keys.get_master_key(&password, &secret)?;
-        Vault::decrypt(&master_key, &self.data)
+    ) -> Result<(), DataError> {
+        self.creds.add_new_method(
+            password,
+            new_method,
+            new_verification_data,
+            method,
+            verification_data,
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use super::{Credentials, DataError, ScrtStore, Serialized, TwoFAMethod, Vault};
+    use super::{Credentials, DataError, ScrtStore, Serialized, TwoFAMethod};
 
     fn two_fa_sample() -> crate::auth::twofa::TwoFAData {
         use base64::Engine;
@@ -179,9 +227,11 @@ mod tests {
         let password: String = "user_password".to_string();
         let pass_phrase: String = "verif123".to_string();
         let store: ScrtStore = ScrtStore::new(password.clone(), pass_phrase.clone());
-        let unlocked: Vault = store
-            .unlock(password, TwoFAMethod::PassPhrase, pass_phrase)
-            .expect("unlock");
+        let master_key = store
+            .get_master_key(TwoFAMethod::PassPhrase, password, pass_phrase)
+            .expect("master key");
+
+        let unlocked = store.unlock(&master_key).expect("unlock");
         assert!(unlocked.metadata.is_empty());
     }
 }
