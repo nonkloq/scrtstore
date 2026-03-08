@@ -272,7 +272,7 @@ impl Secret {
                 } else {
                     let start = &s[..3.min(len)];
                     let end = &s[len - 3.min(len)..];
-                    format!("{}...{}", start, end)
+                    format!("{start}...{end}")
                 }
             }
             SecretType::Hidden(_) => "***".to_string(),
@@ -354,7 +354,7 @@ impl Serialized for SecretEntry {
         let secret_strs: &[&str] = &v[..v.len() - 1];
         let secrets: Vec<Secret> = secret_strs
             .iter()
-            .map(|s| Secret::parse(*s))
+            .map(|s| Secret::parse(s))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self { secrets, id })
     }
@@ -363,8 +363,29 @@ impl Serialized for SecretEntry {
 impl Encrypted for SecretEntry {}
 
 pub struct Credentials {
-    pub keys: PassRing,
-    pub v2fa: TwoFAData,
+    keys: PassRing,
+    v2fa: TwoFAData,
+}
+
+fn random_master_key_hex() -> String {
+    let bytes: [u8; 32] = rand_arr!(32);
+    bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()
+}
+
+impl Credentials {
+    /// Build credentials and master key from password and pass phrase (2FA). Private.
+    fn new(password: &str, pass_phrase: &str) -> (Self, String) {
+        let master_key: String = random_master_key_hex();
+        let mut two_fa: TwoFAData = TwoFAData::default();
+        let secret_key: String = two_fa.add_method(TwoFAMethod::PassPhrase, pass_phrase);
+        let mut pass_ring: PassRing = PassRing::default();
+        pass_ring.add_password(&master_key, password, &secret_key);
+        let creds: Credentials = Credentials {
+            keys: pass_ring,
+            v2fa: two_fa,
+        };
+        (creds, master_key)
+    }
 }
 
 impl Serialized for Credentials {
@@ -435,7 +456,16 @@ impl Serialized for ScrtStore {
 
 pub struct Vault {
     pub metadata: Vec<MetadataEntry>,
-    pub secrets: HashMap<IdType, EncryptedData>,
+    secrets: HashMap<IdType, EncryptedData>,
+}
+
+impl Default for Vault {
+    fn default() -> Self {
+        Vault {
+            metadata: vec![],
+            secrets: HashMap::new(),
+        }
+    }
 }
 
 impl Serialized for Vault {
@@ -461,7 +491,7 @@ impl Serialized for Vault {
             .ok_or(DataError::Parse("Vault: missing --secrets--".to_string()))?;
         let metadata: Vec<MetadataEntry> = lines[..sep_idx]
             .iter()
-            .map(|l| MetadataEntry::parse(*l))
+            .map(|l| MetadataEntry::parse(l))
             .collect::<Result<Vec<_>, _>>()?;
         let mut secrets: HashMap<IdType, EncryptedData> = HashMap::new();
         for line in &lines[sep_idx + 1..] {
@@ -505,6 +535,18 @@ impl MetadataEntry {
 }
 
 impl ScrtStore {
+    /// Create a new store with empty vault, keyed by password and pass phrase (2FA).
+    pub fn new(password: String, pass_phrase: String) -> Self {
+        let (creds, master_key): (Credentials, String) = Credentials::new(&password, &pass_phrase);
+        let vault: Vault = Vault::default();
+        let data: EncryptedData = EncryptedData::encrypt(&master_key, vault.dumps().as_bytes());
+        ScrtStore {
+            checksum: String::from("random bulshit go"),
+            creds,
+            data,
+        }
+    }
+
     pub fn unlock(
         &self,
         password: String,
@@ -605,18 +647,7 @@ mod tests {
 
     #[test]
     fn scrt_store_serialize_deserialize() {
-        let mut ring: crate::auth::pass::PassRing = crate::auth::pass::PassRing::default();
-        ring.add_password("master", "p", "k");
-        let creds: Credentials = Credentials {
-            keys: ring,
-            v2fa: two_fa_sample(),
-        };
-        let data: EncryptedData = EncryptedData::encrypt("key", b"payload");
-        let store: ScrtStore = ScrtStore {
-            checksum: String::new(),
-            creds,
-            data,
-        };
+        let store: ScrtStore = ScrtStore::new("p".to_string(), "pp".to_string());
         let out: String = store.dumps();
         let parsed: ScrtStore = ScrtStore::parse(&out).expect("parse");
         let out2: String = parsed.dumps();
@@ -625,58 +656,26 @@ mod tests {
 
     #[test]
     fn scrt_store_bad_checksum_fails() {
-        let mut ring: crate::auth::pass::PassRing = crate::auth::pass::PassRing::default();
-        ring.add_password("m", "p", "k");
-        let creds: Credentials = Credentials {
-            keys: ring,
-            v2fa: two_fa_sample(),
-        };
-        let data: EncryptedData = EncryptedData::encrypt("k", b"x");
-        let payload: String = format!("{}{}{}", creds.dumps(), super::STORE_SEP, data.dumps());
-        let bad: String = format!("wrong_checksum_hex{}{}", super::STORE_SEP, payload);
+        let store: ScrtStore = ScrtStore::new("p".to_string(), "pp".to_string());
+        let out: String = store.dumps();
+        let bad: String = format!(
+            "wrong_checksum_hex{}{}",
+            super::STORE_SEP,
+            out.split_once(super::STORE_SEP).unwrap().1
+        );
         let result: Result<ScrtStore, DataError> = ScrtStore::parse(&bad);
         assert!(matches!(result, Err(DataError::ChecksumMismatch)));
     }
 
     #[test]
     fn scrt_store_unlock() {
-        let master_key: &str = "test_master_key";
-        let password: &str = "user_password";
-        let verification_data: &str = "verif123";
-
-        let two_fa: crate::auth::twofa::TwoFAData = two_fa_sample();
-        let two_fa_secret: String = two_fa
-            .get_key(TwoFAMethod::PassPhrase, verification_data)
-            .expect("get_key");
-
-        let mut ring: crate::auth::pass::PassRing = crate::auth::pass::PassRing::default();
-        ring.add_password(master_key, password, &two_fa_secret);
-
-        let vault: Vault = Vault {
-            metadata: vec![],
-            secrets: std::collections::HashMap::new(),
-        };
-        let vault_bytes: String = vault.dumps();
-        let data: EncryptedData = EncryptedData::encrypt(master_key, vault_bytes.as_bytes());
-
-        let store: ScrtStore = ScrtStore {
-            checksum: String::new(),
-            creds: Credentials {
-                keys: ring,
-                v2fa: two_fa,
-            },
-            data,
-        };
-
+        let password: String = "user_password".to_string();
+        let pass_phrase: String = "verif123".to_string();
+        let store: ScrtStore = ScrtStore::new(password.clone(), pass_phrase.clone());
         let unlocked: Vault = store
-            .unlock(
-                password.to_string(),
-                TwoFAMethod::PassPhrase,
-                verification_data.to_string(),
-            )
+            .unlock(password, TwoFAMethod::PassPhrase, pass_phrase)
             .expect("unlock");
-        assert_eq!(unlocked.metadata.len(), vault.metadata.len());
-        assert_eq!(unlocked.secrets.len(), vault.secrets.len());
+        assert!(unlocked.metadata.is_empty());
     }
 
     #[test]
@@ -699,11 +698,10 @@ mod tests {
         let mut secrets_map: std::collections::HashMap<super::IdType, EncryptedData> =
             std::collections::HashMap::new();
         secrets_map.insert(1, enc_entry);
-        let vault: Vault = Vault {
+        let vault = Vault {
             metadata: vec![],
             secrets: secrets_map,
         };
-
         let decrypted_entry: SecretEntry = vault
             .get_secret(1, vault_key)
             .expect("get_secret should return Some");

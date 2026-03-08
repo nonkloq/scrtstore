@@ -67,7 +67,7 @@ pub trait Encrypted: Serialized {
         Self: Sized,
         Self::Error: From<CipherError>,
     {
-        let s: String = packet.decrypt(password).map_err(Into::into)?;
+        let s: String = packet.decrypt(password)?;
         Self::parse(&s)
     }
 }

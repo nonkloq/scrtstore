@@ -4,6 +4,8 @@ use argon2::Argon2;
 
 use base64::{Engine, prelude::BASE64_STANDARD};
 
+use crate::rand_arr;
+
 const SALT_LEN: usize = 32;
 const KEY_LEN: usize = 32;
 
@@ -69,6 +71,13 @@ pub struct TwoFAData {
     data: HashMap<TwoFAMethod, [u8; SALT_LEN]>,
 }
 
+impl Default for TwoFAData {
+    fn default() -> Self {
+        Self {
+            data: HashMap::new(),
+        }
+    }
+}
 const DELIM: char = ';';
 
 impl TwoFAData {
@@ -79,6 +88,12 @@ impl TwoFAData {
     ) -> Result<String, TwoFAError> {
         let salt: &[u8; SALT_LEN] = self.data.get(&method).ok_or(TwoFAError::MethodNotFound)?;
         Ok(TwoFAMethod::get_key(verification_data, &salt[..]))
+    }
+
+    pub fn add_method(&mut self, method: TwoFAMethod, verification_data: &str) -> String {
+        let random_salt = rand_arr!(SALT_LEN);
+        self.data.insert(method.clone(), random_salt);
+        self.get_key(method, &verification_data).unwrap()
     }
 }
 
