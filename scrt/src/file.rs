@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::auth::cipher::Serialized;
-use crate::data::ScrtStore;
+use crate::data::store::ScrtStore;
 
 pub fn load_scrtstore<P: AsRef<Path>>(path: P) -> Result<ScrtStore, String> {
     let path = path.as_ref();
@@ -17,12 +17,12 @@ pub fn load_scrtstore<P: AsRef<Path>>(path: P) -> Result<ScrtStore, String> {
         .ok_or_else(|| format!("Invalid filename: {}", path.display()))?;
 
     if !filename.ends_with(".scrt") {
-        return Err(format!("File extension must be .scrt: {}", filename));
+        return Err(format!("File extension must be .scrt: {filename}"));
     }
 
     let content = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {e}"))?;
 
-    ScrtStore::parse(&content).map_err(|e| format!("Parse error: {:?}", e))
+    ScrtStore::parse(&content).map_err(|e| format!("Parse error: {e:?}"))
 }
 
 pub fn save_scrtstore<P: AsRef<Path>>(path: P, scrtstore: &ScrtStore) -> Result<(), String> {
@@ -39,4 +39,3 @@ pub fn save_scrtstore<P: AsRef<Path>>(path: P, scrtstore: &ScrtStore) -> Result<
     let content = scrtstore.dumps();
     fs::write(&pathbuf, content).map_err(|e| format!("Failed to write file: {e}"))
 }
-
