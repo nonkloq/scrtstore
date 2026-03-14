@@ -5,6 +5,7 @@
 #
 [workspace]
 members = [
+    "tui",
     "scrt",
 ]
 resolver = "2"
