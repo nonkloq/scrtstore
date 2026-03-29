@@ -1,92 +1,95 @@
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
+use core::fmt;
+use gui::components::{input_widget::InputWidget, text_box::TextBox};
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
-use crossterm::terminal;
-use ratatui::style::Stylize;
-use ratatui::widgets::{Block, Paragraph, Widget};
-use ratatui::{DefaultTerminal, widgets};
-use scrt::auth::twofa::TwoFAMethod;
-use scrt::{ScrtStore, Vault};
+use crossterm::event::{self, Event, KeyCode};
+use ratatui::{DefaultTerminal, Frame};
 
-const SCRT_PATH: &str = "./my.scrt";
-
-struct Button {
-    label: String,
-    is_active: bool,
+struct App {
+    is_exit: bool,
+    is_in_background: bool,
+    text_box: TextBox,
 }
-impl Button {
-    fn new(name: &str) -> Button {
-        Button {
-            label: String::from(name),
-            is_active: true,
+
+#[derive(Debug)]
+enum AppError {
+    // AnyError(String),
+    IOError(std::io::Error),
+}
+impl From<std::io::Error> for AppError {
+    fn from(value: std::io::Error) -> Self {
+        AppError::IOError(value)
+    }
+}
+
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            // AppError::AnyError(err) => write!(f, "Error occured: {err}"),
+            AppError::IOError(err) => write!(f, "IO Error: {err}"),
         }
     }
 }
 
-impl Widget for Button {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
-    where
-        Self: Sized,
-    {
-        let mut block = widgets::Block::bordered().title(self.label);
-        if self.is_active {
-            block = block.green();
-        } else {
-            block = block.gray();
-        }
-        block.render(area, buf);
-    }
-}
-
-struct LoginPage {
-    store_path: Option<PathBuf>,
-    password: Option<String>,
-    verif_method: TwoFAMethod,
-    verif_data: Option<String>,
-    exit: bool,
-}
-
-impl LoginPage {
-    fn new(scrt_path: Option<&str>) -> LoginPage {
-        LoginPage {
-            store_path: scrt_path.map(PathBuf::from),
-            password: None,
-            verif_method: TwoFAMethod::PassPhrase,
-            verif_data: None,
-            exit: false,
+impl App {
+    fn new() -> Self {
+        App {
+            is_exit: false,
+            is_in_background: false,
+            text_box: TextBox::new(String::from("Input Box")),
         }
     }
-    fn handle_events(&mut self) -> std::io::Result<()> {
+
+    fn render(&mut self, frame: &mut Frame) {
+        let area = frame.area();
+        self.text_box.render_widget(frame, area);
+        self.text_box.set_cursor(frame, area);
+    }
+
+    fn handle_events(&mut self) -> Result<(), AppError> {
         match event::read()? {
-            // it's important to check that the event is a key press event as
-            // crossterm also emits key release and repeat events on Windows.
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event)
+            Event::Key(k) => {
+                if k.code == KeyCode::Esc {
+                    self.is_exit = true;
+                } else {
+                    self.text_box.handle_key(k);
+                }
             }
-            _ => {}
-        };
-        Ok(())
-    }
-    fn exit(&mut self) {
-        self.exit = true;
-    }
-    fn handle_key_event(&mut self, key_event: KeyEvent) {
-        match key_event.code {
-            KeyCode::Char('q') => self.exit(),
-            _ => {}
+            Event::Mouse(_m) => (),
+            Event::Paste(_content) => (),
+            Event::Resize(_x, _y) => (),
+            Event::FocusLost => self.is_in_background = true,
+            Event::FocusGained => self.is_in_background = false,
         }
+        Ok(())
     }
 
-    fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<(), Box<dyn std::error::Error>> {
-        while !self.exit {
-            terminal.draw(|frame| frame.render_widget(Button::new("Ligma"), frame.area()))?;
-            self.handle_events()?;
+    fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<(), AppError> {
+        while !self.is_exit {
+            terminal.draw(|frame| self.render(frame))?;
+            // It blocks the loop to listen for events
+            self.handle_events()? // blocks (waits)
         }
         Ok(())
+    }
+}
+
+// HACK: Temporary Cursor gaurd, need to modify this
+struct CursorGuard;
+
+impl CursorGuard {
+    fn new() -> Self {
+        print!("\x1b[5 q");
+        CursorGuard
+    }
+}
+
+impl Drop for CursorGuard {
+    fn drop(&mut self) {
+        print!("\x1b[1 q");
     }
 }
 
 fn main() {
-    let _vault = ratatui::run(|terminal| LoginPage::new(Some(SCRT_PATH)).run(terminal));
+    let _cur = CursorGuard::new();
+    let _app_result = ratatui::run(|terminal| App::new().run(terminal));
 }
