@@ -67,17 +67,11 @@ impl TwoFAMethod {
     }
 }
 
+#[derive(Default)]
 pub struct TwoFAData {
     data: HashMap<TwoFAMethod, [u8; SALT_LEN]>,
 }
 
-impl Default for TwoFAData {
-    fn default() -> Self {
-        Self {
-            data: HashMap::new(),
-        }
-    }
-}
 const DELIM: char = ';';
 
 impl TwoFAData {
@@ -93,7 +87,7 @@ impl TwoFAData {
     pub fn add_method(&mut self, method: TwoFAMethod, verification_data: &str) -> String {
         let random_salt = rand_arr!(SALT_LEN);
         self.data.insert(method.clone(), random_salt);
-        self.get_key(method, &verification_data).unwrap()
+        self.get_key(method, verification_data).unwrap()
     }
 }
 
