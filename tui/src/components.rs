@@ -1,2 +1,1 @@
-pub mod input_widget;
-pub mod text_box;
+pub mod input_box;

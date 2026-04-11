@@ -11,6 +11,7 @@ use ratatui::{
 };
 
 use crate::pages::Pages;
+use crate::pages::create_new_store::NewStore;
 
 pub struct StoresList {
     stores: Vec<String>,
@@ -112,7 +113,9 @@ impl StoresList {
             KeyCode::Enter if self.idx_pos < self.stores.len() => {
                 Some(Pages::Login(self.stores[self.idx_pos].clone()))
             }
-            KeyCode::Enter if self.idx_pos >= self.stores.len() => Some(Pages::CreateNew),
+            KeyCode::Enter if self.idx_pos >= self.stores.len() => {
+                Some(Pages::CreateNew(NewStore::default()))
+            }
             _ => None,
         }
     }

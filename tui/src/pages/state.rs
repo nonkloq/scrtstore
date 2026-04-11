@@ -1,11 +1,11 @@
 use crossterm::event::{Event, KeyCode, KeyEvent, MouseEvent};
 use ratatui::Frame;
 
-use crate::pages::select_store::StoresList;
+use crate::pages::{create_new_store::NewStore, select_store::StoresList};
 
 pub enum Pages {
     ListStores(StoresList),
-    CreateNew,
+    CreateNew(NewStore),
     Login(String),
     Vault,
     HideScreen,
@@ -57,6 +57,7 @@ impl Pages {
     pub fn render(&mut self, frame: &mut Frame) {
         match self {
             Self::ListStores(list) => list.render(frame),
+            Self::CreateNew(form) => form.render(frame),
             _ => {}
         }
     }
