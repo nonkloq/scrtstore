@@ -143,6 +143,7 @@ trait WidgetNode {
 }
 
 struct SectionNode<'a> {
+    show_section_outline: bool,
     children: Vec<ChildNode<'a>>,
     parent: Option<Weak<RefCell<SectionNode<'a>>>>,
 }
@@ -150,6 +151,7 @@ struct SectionNode<'a> {
 impl<'a> SectionNode<'a> {
     fn new(children: Vec<ChildNode<'a>>) -> Rc<RefCell<Self>> {
         let node = Rc::new(RefCell::new(Self {
+            show_section_outline: false,
             children: vec![],
             parent: None,
         }));
@@ -169,11 +171,20 @@ impl SectionNode<'_> {
         self.children.iter().map(|c| c.get_section_length()).sum()
     }
 
+    fn set_show_section_outline(&mut self, flag: bool) {
+        self.show_section_outline = flag;
+    }
+
     fn render_section(&self, area: Rect, frame: &mut Frame) {
         // Draw section outline
-        let block = Block::default().borders(Borders::ALL);
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
+        let inner: Rect = if self.show_section_outline {
+            let block = Block::default().borders(Borders::ALL);
+            let inner = block.inner(area);
+            frame.render_widget(block, area);
+            inner
+        } else {
+            area
+        };
 
         // Draw sections
         let constraints = self
@@ -292,6 +303,7 @@ fn main() {
         ChildNode::Section(major1),
         ChildNode::Section(minor1),
     ]));
+    page_root.borrow_mut().set_show_section_outline(true);
 
     let tree = PageTree::new(Rc::clone(&page_root));
     // let _cur = CursorGuard::new();
