@@ -18,6 +18,8 @@ use ratatui::{DefaultTerminal, Frame};
 use std::io::stdout;
 use std::rc::Rc;
 
+use gui::components::input_box::{SecretBox, TextBox};
+
 struct CursorGuard;
 
 impl CursorGuard {
@@ -123,7 +125,7 @@ impl WidgetNode for TextBlock {
     fn get_length(&self) -> u16 {
         self.len
     }
-    fn render_widget(&self, area: Rect, frame: &mut Frame) {
+    fn render_widget(&self, area: Rect, frame: &mut Frame, is_selected: bool) {
         let p = Paragraph::new(self.name.clone())
             .block(Block::default().title("Text Block").borders(Borders::ALL))
             .alignment(Alignment::Center)
@@ -188,8 +190,8 @@ fn run(term: &mut DefaultTerminal, tree: &mut PageTree) -> Result<(), AppError> 
 fn main() {
     // let _ = disable_mouse();
     // let _ = enable_mouse();
-    let l11 = ChildNode::new_widget(TextBlock::new("At First 1", 3));
-    let l12 = ChildNode::new_widget(TextBlock::new("At First 2", 3));
+    let l11 = ChildNode::new_widget(TextBox::new("Name".to_string(), None));
+    let l12 = ChildNode::new_widget(SecretBox::new("Password".to_string(), None));
 
     let l2s = ChildNode::new_section(Vec::from([
         ChildNode::new_widget(TextBlock::new("At second 1", 5)),

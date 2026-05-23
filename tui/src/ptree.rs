@@ -28,7 +28,7 @@ pub enum ChildNode<'a> {
 
 /// Widget node interface
 pub trait WidgetNode {
-    fn render_widget(&self, area: Rect, frame: &mut Frame);
+    fn render_widget(&self, area: Rect, frame: &mut Frame, is_selected: bool);
     fn get_length(&self) -> u16;
 
     // Return the status to indicate if the event consumed or not
@@ -64,10 +64,10 @@ impl ChildNode<'_> {
         }
     }
 
-    fn render(&self, frame: &mut Frame, area: Rect) {
+    fn render(&self, frame: &mut Frame, area: Rect, is_selected: bool) {
         match self {
             ChildNode::Section(sec) => sec.borrow().render_section(area, frame),
-            ChildNode::Widget(wid) => wid.borrow().render_widget(area, frame),
+            ChildNode::Widget(wid) => wid.borrow().render_widget(area, frame, is_selected),
         }
     }
 }
@@ -135,13 +135,15 @@ impl SectionNode<'_> {
             .iter()
             .enumerate()
             .for_each(|(idx, sub_area)| {
-                if self.is_it_the_selected_section && idx == self.selected_child {
+                let is_it_the_selected_elm =
+                    self.is_it_the_selected_section && idx == self.selected_child;
+                if is_it_the_selected_elm {
                     let block = Block::default()
                         .borders(Borders::ALL)
                         .border_style(Style::default().fg(Color::Yellow));
                     frame.render_widget(block, *sub_area);
                 }
-                self.children[idx].render(frame, *sub_area)
+                self.children[idx].render(frame, *sub_area, is_it_the_selected_elm)
             });
     }
 }
