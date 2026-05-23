@@ -2,6 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::rc::Weak;
 
+use crossterm::event::Event;
+use crossterm::event::KeyEvent;
 use ratatui::Frame;
 
 use ratatui::layout::Rect;
@@ -28,6 +30,12 @@ pub enum ChildNode<'a> {
 pub trait WidgetNode {
     fn render_widget(&self, area: Rect, frame: &mut Frame);
     fn get_length(&self) -> u16;
+
+    // Return the status to indicate if the event consumed or not
+    fn handle_key_event(&mut self, event: KeyEvent) -> bool;
+    fn handle_paste_event(&mut self, _content: String) -> bool {
+        false
+    }
 }
 
 /// Section node that can have many nodes
@@ -212,6 +220,10 @@ impl PageTree<'_> {
     pub fn enter(&mut self) {
         if let Some(section) = self.get_selected_section() {
             let new_section = section.borrow().get_section_ref();
+            // New section is a widget so we can skip
+            if new_section.is_none() {
+                return;
+            }
             self.set_selected_section(new_section);
         }
     }
@@ -225,5 +237,21 @@ impl PageTree<'_> {
             };
             self.set_selected_section(parent_ref);
         }
+    }
+
+    /// If the selected child is type of section it won't send any events to it.
+    /// Returns True if selected widget consumed the event otherwise false
+    pub fn redirect_consume_event_to_widget(&mut self, event: Event) -> bool {
+        if let Some(section) = self.get_selected_section() {
+            let section = section.borrow_mut();
+            if let Some(ChildNode::Widget(widget)) = section.children.get(section.selected_child) {
+                return match event {
+                    Event::Key(keyv) => widget.borrow_mut().handle_key_event(keyv),
+                    Event::Paste(content) => widget.borrow_mut().handle_paste_event(content),
+                    _ => false,
+                };
+            }
+        }
+        false
     }
 }

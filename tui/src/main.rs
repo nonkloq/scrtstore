@@ -131,6 +131,20 @@ impl WidgetNode for TextBlock {
 
         frame.render_widget(p, area);
     }
+
+    fn handle_key_event(&mut self, event: KeyEvent) -> bool {
+        match event.code {
+            KeyCode::Char(ch) => self.name.push(ch),
+            KeyCode::Delete => self.name.clear(),
+            _ => return false,
+        }
+        true
+    }
+
+    fn handle_paste_event(&mut self, _content: String) -> bool {
+        self.name = _content;
+        true
+    }
 }
 //
 // struct MyApp {
@@ -149,13 +163,19 @@ fn run(term: &mut DefaultTerminal, tree: &mut PageTree) -> Result<(), AppError> 
             tree.render(frame);
         })?;
 
-        if let Event::Key(e) = event::read()? {
+        let event = event::read()?;
+
+        if tree.redirect_consume_event_to_widget(event.clone()) {
+            continue;
+        }
+
+        if let Event::Key(e) = event {
             match e.code {
                 KeyCode::Char('q') => break, // Exit the loop
-                KeyCode::Tab => {
+                KeyCode::Tab | KeyCode::Right | KeyCode::Down => {
                     tree.move_to_next(true);
                 }
-                KeyCode::BackTab => tree.move_to_next(false),
+                KeyCode::BackTab | KeyCode::Left | KeyCode::Up => tree.move_to_next(false),
                 KeyCode::Enter => tree.enter(),
                 KeyCode::Esc => tree.escape(),
                 _ => continue,
