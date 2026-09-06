@@ -1,4 +1,7 @@
+pub mod page;
+
 pub mod create_new_store;
-pub mod enter_creds;
+pub mod login;
 pub mod select_store;
-pub mod state;
+pub mod vault_page;
+pub mod welcome;

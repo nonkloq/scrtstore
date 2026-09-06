@@ -1,3 +1,7 @@
 /target
 
 *.scrt
+
+tmp/
+REVISED_TUI.md 
+TODO.md
