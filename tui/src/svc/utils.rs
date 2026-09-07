@@ -1,4 +1,7 @@
+use dirs;
 use std::io::ErrorKind;
+use std::path::Path;
+use std::str::FromStr;
 use std::{fs, path::PathBuf, vec};
 
 use chrono::{DateTime, Local};
@@ -18,6 +21,20 @@ impl StoreMetaData {
     pub fn get_last_accessed_timestamp(&self) -> DateTime<Local> {
         let ts = chrono::DateTime::from_timestamp(self.last_accessed, 0).unwrap_or_default();
         ts.with_timezone(&Local)
+    }
+
+    pub fn get_display_path(&self) -> String {
+        let path = Path::new(&self.path);
+        if let Some(home) = dirs::home_dir()
+            && let Ok(relative) = path.strip_prefix(&home)
+        {
+            if relative.as_os_str().is_empty() {
+                return "~".to_string();
+            }
+
+            return format!("~/{}", relative.display());
+        }
+        path.display().to_string()
     }
 }
 

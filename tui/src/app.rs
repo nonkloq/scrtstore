@@ -1,9 +1,12 @@
 use core::fmt;
 use crossterm::event::{self, Event, KeyCode};
 
-use crate::pages::{
-    page::{EventResult, PageObject},
-    welcome::Welcome,
+use crate::{
+    pages::{
+        page::{EventResult, PageObject},
+        select_store::SelectStore,
+    },
+    svc::utils::{get_known_stores, get_project_dirs},
 };
 use ratatui::{DefaultTerminal, Frame};
 
@@ -96,7 +99,7 @@ impl App {
 impl Default for App {
     fn default() -> Self {
         App {
-            page: Welcome::new(),
+            page: SelectStore::new(get_known_stores(&get_project_dirs())),
         }
     }
 }
