@@ -1,6 +1,5 @@
-use std::str::FromStr;
-
 use crate::{
+    components::button::render_button,
     pages::{
         create_new_store::CreateNewStore,
         login::Login,
@@ -129,30 +128,12 @@ impl Page for SelectStore {
             frame.render_stateful_widget(scrollbar, list_area, &mut scrollbar_state);
         }
 
-        // -------------------------
-        // Create New Store
-        // -------------------------
-
-        let create_selected = self.selected_option == self.stores.len();
-
-        let create_style = if create_selected {
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::White)
-        };
-
-        let create_new = Paragraph::new("Create New Store")
-            .alignment(Alignment::Center)
-            .style(create_style)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded),
-            );
-
-        frame.render_widget(create_new, create_area);
+        render_button(
+            "Create New Store",
+            create_area,
+            frame,
+            self.selected_option == self.stores.len(),
+        );
     }
 
     fn handle_event(&mut self, event: crossterm::event::Event) -> super::page::EventResult {
