@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::pages::{page::Page, select_store::SelectStore, vault_page::VaultPage};
 
 pub struct Login {}
@@ -7,7 +9,7 @@ impl Page for Login {
 }
 
 impl Login {
-    pub fn new() -> Box<Self> {
+    pub fn new(path: PathBuf) -> Box<Self> {
         Box::new(Login {})
     }
 }

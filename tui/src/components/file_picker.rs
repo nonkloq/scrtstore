@@ -25,6 +25,10 @@ impl<'a> FilePicker<'a> {
         }
     }
 
+    pub fn get_content(&self) -> PathBuf {
+        self.path.clone()
+    }
+
     pub fn render_widget(
         &self,
         area: Rect,

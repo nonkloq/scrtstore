@@ -1,14 +1,13 @@
 use dirs;
 use std::io::ErrorKind;
 use std::path::Path;
-use std::str::FromStr;
 use std::{fs, path::PathBuf, vec};
 
 use chrono::{DateTime, Local};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct StoreMetaData {
     path: String,
     last_accessed: i64,
@@ -18,6 +17,20 @@ pub fn get_project_dirs() -> ProjectDirs {
 }
 
 impl StoreMetaData {
+    pub fn new(path: &Path) -> Self {
+        StoreMetaData {
+            path: path.to_str().unwrap().to_string(),
+            last_accessed: chrono::Utc::now().timestamp(),
+        }
+    }
+
+    pub fn save(&self) {
+        let project_dir = get_project_dirs();
+        let mut all_stores = get_known_stores(&project_dir);
+        all_stores.push(self.clone());
+        save_known_stores(&all_stores, &project_dir);
+    }
+
     pub fn get_last_accessed_timestamp(&self) -> DateTime<Local> {
         let ts = chrono::DateTime::from_timestamp(self.last_accessed, 0).unwrap_or_default();
         ts.with_timezone(&Local)
@@ -35,6 +48,10 @@ impl StoreMetaData {
             return format!("~/{}", relative.display());
         }
         path.display().to_string()
+    }
+
+    pub fn get_path_buf(&self) -> PathBuf {
+        PathBuf::from(&self.path)
     }
 }
 
@@ -83,6 +100,15 @@ pub fn save_known_stores(data: &Vec<StoreMetaData>, project_dir: &ProjectDirs) {
             return;
         }
     };
+
+    if let Some(parent) = ss_file.parent()
+        && let Err(e) = fs::create_dir_all(parent)
+    {
+        eprintln!(
+            "Failed to create parent directories {}: {e}",
+            parent.display()
+        );
+    }
 
     if let Err(e) = fs::write(&ss_file, json) {
         eprintln!(

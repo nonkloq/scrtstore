@@ -38,7 +38,7 @@ impl<'a> InputField<'a> {
     }
 
     pub fn get_content(&self) -> String {
-        self.text.clone()
+        self.text.trim().to_string()
     }
 
     pub fn get_cursor_pos(&self) -> u16 {

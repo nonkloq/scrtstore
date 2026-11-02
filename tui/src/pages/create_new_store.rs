@@ -1,10 +1,17 @@
 use crate::components::button::render_button;
 use crate::components::file_picker::FilePicker;
+use crate::pages::login::Login;
 use crate::pages::page::{EventResult, Page};
+use crate::svc::utils::{StoreMetaData, get_known_stores, get_project_dirs};
 use ratatree::PickerMode;
 use ratatui::layout::{Constraint, Layout};
+use ratatui::style::{Color, Stylize};
+use ratatui::widgets::Paragraph;
+use regex::Regex;
+use scrt::file::new_scrtstore;
 use scrt::ppgen::generate_pass_phrase;
 use std::env;
+use std::path::{Path, PathBuf};
 
 use crate::components::input_field::InputField;
 
@@ -28,6 +35,58 @@ pub struct CreateNewStore<'a> {
     passphrase: InputField<'a>,
 
     selected_field: Pf,
+    error_msgs: Option<Vec<String>>,
+}
+
+fn validate_password(password: &str) -> Option<String> {
+    let password = password.trim();
+    if password.is_empty() {
+        return Some("Password can't be empty!".to_string());
+    }
+
+    if !(10..=512).contains(&password.len()) {
+        return Some("Password should have atleast 10 to max 512 characters!".to_string());
+    }
+    let ascii = Regex::new(r"^[\x21-\x7E]+$").unwrap();
+    let lowercase = Regex::new(r"[a-z]").unwrap();
+    let uppercase = Regex::new(r"[A-Z]").unwrap();
+    let number = Regex::new(r"[0-9]").unwrap();
+    let symbol = Regex::new(r"[^a-zA-Z0-9]").unwrap();
+
+    if !(ascii.is_match(password)
+        && lowercase.is_match(password)
+        && uppercase.is_match(password)
+        && number.is_match(password)
+        && symbol.is_match(password))
+    {
+        return Some("Password should have one Uppercase, one lowercase, symbols & numerical characters. And ASCII characters only allowed.".to_string());
+    }
+
+    None
+}
+
+fn validate_store_name(name: &str) -> Option<String> {
+    let name = name.trim();
+
+    if name.is_empty() {
+        return Some("Store name can't be empty!".to_string());
+    }
+
+    if !(3..=256).contains(&name.len()) {
+        return Some("Store name should have 3 to 256 characters.".to_string());
+    }
+
+    None
+}
+
+fn validate_phrase(phrase: &str) -> Option<String> {
+    let re = Regex::new(r"\A[A-Za-z0-9]{3,}(?: [A-Za-z0-9]{3,}){11,127}\z").unwrap();
+
+    if re.is_match(phrase) {
+        return None;
+    }
+
+    Some("Valid phrase should have atleast 12 to 128 words with each word separated by space, each word with atleast 3 characters and all ASCII.".to_string())
 }
 
 impl<'a> Page for CreateNewStore<'a> {
@@ -65,6 +124,12 @@ impl<'a> Page for CreateNewStore<'a> {
             Layout::horizontal([Constraint::Percentage(80), Constraint::Percentage(20)])
                 .areas(passphrase_gen);
 
+        if let Some(errors) = self.error_msgs.as_ref() {
+            frame.render_widget(
+                Paragraph::new(errors.join("\n")).fg(Color::Red),
+                _footer_area,
+            );
+        }
         render_button(
             "Create Store  ",
             submit,
@@ -144,7 +209,44 @@ impl<'a> CreateNewStore<'a> {
             store_name,
             passphrase,
             selected_field: Pf::Name,
+            error_msgs: None,
         })
+    }
+
+    fn handle_submit(&mut self) -> Result<PathBuf, Vec<String>> {
+        let mut errors: Vec<String> = Vec::new();
+        if let Some(pass_msg) = validate_password(&self.password.get_content()) {
+            errors.push(pass_msg);
+        }
+        if let Some(phrase_msg) = validate_phrase(&self.passphrase.get_content()) {
+            errors.push(phrase_msg);
+        }
+        if let Some(name_msg) = validate_store_name(&self.store_name.get_content()) {
+            errors.push(name_msg);
+        }
+
+        if !errors.is_empty() {
+            return Err(errors);
+        }
+
+        let mut filepath = self.path.get_content();
+        filepath.push(self.store_name.get_content());
+        filepath.set_extension("scrt");
+
+        match new_scrtstore(
+            &filepath,
+            self.password.get_content(),
+            self.passphrase.get_content(),
+        ) {
+            Ok(()) => {
+                StoreMetaData::new(&filepath).save();
+                Ok(filepath)
+            }
+            Err(e) => {
+                errors.push(e.to_string());
+                Err(errors)
+            }
+        }
     }
 
     fn handle_key(&mut self, key: KeyEvent) -> EventResult {
@@ -176,9 +278,13 @@ impl<'a> CreateNewStore<'a> {
                 EventResult::Consumed
             }
 
-            KeyCode::Enter if self.selected_field.is(Pf::Submit) => {
-                todo!()
-            }
+            KeyCode::Enter if self.selected_field.is(Pf::Submit) => match self.handle_submit() {
+                Ok(path) => EventResult::NxtState(Login::new(path)),
+                Err(msgs) => {
+                    self.error_msgs = Some(msgs);
+                    EventResult::Consumed
+                }
+            },
 
             KeyCode::Esc => {
                 self.selected_field = Pf::None;

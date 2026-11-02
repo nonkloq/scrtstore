@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::{
     components::button::render_button,
     pages::{
@@ -167,7 +169,11 @@ impl SelectStore {
                 EventResult::Consumed
             }
             KeyCode::Enter if self.selected_option < self.stores.len() => {
-                EventResult::NxtState(Login::new())
+                if let Some(meta) = self.stores.get(self.selected_option) {
+                    EventResult::NxtState(Login::new(meta.get_path_buf()))
+                } else {
+                    EventResult::NxtState(CreateNewStore::new())
+                }
             }
             KeyCode::Enter if self.selected_option >= self.stores.len() => {
                 EventResult::NxtState(CreateNewStore::new())
