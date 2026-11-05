@@ -37,6 +37,10 @@ impl<'a> InputField<'a> {
         self.text = new_txt
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.text.trim().is_empty()
+    }
+
     pub fn get_content(&self) -> String {
         self.text.trim().to_string()
     }
