@@ -7,7 +7,7 @@ use crate::svc::utils::{StoreMetaData, get_known_stores, get_project_dirs};
 use ratatree::PickerMode;
 use ratatui::layout::{Alignment, Constraint, Layout};
 use ratatui::style::{Color, Stylize};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use regex::Regex;
 use scrt::file::new_scrtstore;
 use scrt::ppgen::generate_pass_phrase;
@@ -302,8 +302,8 @@ impl<'a> CreateNewStore<'a> {
         frame.render_widget(oblock, dalog_area);
 
         let [bth, ays, changes, options] = Layout::vertical([
-            Constraint::Percentage(20),
-            Constraint::Percentage(20),
+            Constraint::Percentage(10),
+            Constraint::Percentage(40),
             Constraint::Percentage(30),
             Constraint::Percentage(20),
         ])
@@ -311,7 +311,9 @@ impl<'a> CreateNewStore<'a> {
 
         let title = Paragraph::new("Go back to home.").alignment(Alignment::Center);
         frame.render_widget(title, bth);
-        let ays_txt = Paragraph::new("Are you sure?").alignment(Alignment::Center);
+        let ays_txt =
+            Paragraph::new("Are you sure?\n Press [Esc] / [No] to exit. [Yes] to Go back to home.\nUse [Tab]/[Arrow] Keys to switch options.\n")
+                .alignment(Alignment::Center);
         frame.render_widget(ays_txt, ays);
 
         let mut changed_fields: Vec<&str> = vec![];
@@ -327,7 +329,7 @@ impl<'a> CreateNewStore<'a> {
 
         if !changed_fields.is_empty() {
             let msg = format!(
-                "You have entered some details in {:}",
+                "You have entered some details in\n {:} field(s).\nThese data will not be restored after you exit.",
                 changed_fields.join(", ")
             );
             let emgw = Paragraph::new(msg).alignment(Alignment::Center);
@@ -346,7 +348,7 @@ impl<'a> CreateNewStore<'a> {
         let yess = Paragraph::new("yes").alignment(Alignment::Center).block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_type(ratatui::widgets::BorderType::QuadrantOutside)
+                .border_type(ratatui::widgets::BorderType::Thick)
                 .fg(if option {
                     Color::Yellow
                 } else {
@@ -357,7 +359,7 @@ impl<'a> CreateNewStore<'a> {
         let noo = Paragraph::new("no").alignment(Alignment::Center).block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_type(ratatui::widgets::BorderType::QuadrantOutside)
+                .border_type(ratatui::widgets::BorderType::Thick)
                 .fg(if !option {
                     Color::Yellow
                 } else {
@@ -385,12 +387,13 @@ impl<'a> CreateNewStore<'a> {
         ])
         .areas(field_area);
 
-        let [_, path_name, password, passphrase_gen, submit, _] = Layout::vertical([
+        let [_, path_name, password, passphrase_gen, submit, dyn_info, _] = Layout::vertical([
             Constraint::Fill(1),
             Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Length(3),
+            Constraint::Length(5),
             Constraint::Fill(1),
         ])
         .areas(field_area);
@@ -402,12 +405,59 @@ impl<'a> CreateNewStore<'a> {
             Layout::horizontal([Constraint::Percentage(80), Constraint::Percentage(20)])
                 .areas(passphrase_gen);
 
+        let [_, _footer_area, _] = Layout::horizontal([
+            Constraint::Percentage(20),
+            Constraint::Percentage(80),
+            Constraint::Percentage(20),
+        ])
+        .areas(_footer_area);
+
+        let [erro_msg_line, _] =
+            Layout::vertical([Constraint::Length(10), Constraint::Fill(1)]).areas(_footer_area);
+
         if let Some(errors) = self.error_msgs.as_ref() {
             frame.render_widget(
-                Paragraph::new(errors.join("\n")).fg(Color::Red),
-                _footer_area,
+                Paragraph::new(errors.join("\n"))
+                    .fg(Color::Red)
+                    .alignment(Alignment::Left)
+                    .wrap(Wrap { trim: false }),
+                erro_msg_line,
             );
         }
+
+        let common_nav = "Use [Tab/Shift-Tab]/[Up/Down Arrow] Keys to navigate";
+        let info_txt = match self.selected_field {
+            Pf::None => format!(
+                "[q] To quit\n[Esc] to go back to home\n{}",
+                common_nav.replace("navigate", "select")
+            ),
+            Pf::Submit => format!(
+                "Press [Enter] to Create new store\n[Esc] to de-select the field\n[q] To quit\n{}",
+                common_nav
+            ),
+            Pf::Path => format!(
+                "Press [Enter] to open path selector\n[Esc] to de-select the field\n[q] To quit\n{}",
+                common_nav
+            ),
+            Pf::GenPhrase => format!(
+                "Press [Enter] to generate a random passphrase\n[Esc] to de-select the field\n[q] To quit\n{}",
+                common_nav
+            ),
+            Pf::Name | Pf::Pass | Pf::Phrase => {
+                format!(
+                    "Use [Left/Right Arrow] key to move cursor\n[Esc] to de-select the field\n{}",
+                    common_nav
+                )
+            }
+            Pf::HomeDialog(_) => "".to_string(),
+        };
+        frame.render_widget(
+            Paragraph::new(info_txt)
+                .fg(Color::LightBlue)
+                .alignment(Alignment::Right),
+            dyn_info,
+        );
+
         render_button(
             "Create Store  ",
             submit,
