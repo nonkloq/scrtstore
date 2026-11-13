@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use scrt::{ScrtStore, file::load_scrtstore};
 
 use crate::components::button::render_button;
+use crate::components::input_field::SecretInputField;
 use crate::pages::page::EventResult;
 use crate::svc::utils::{get_known_stores, get_project_dirs};
 use crate::{
@@ -58,8 +59,8 @@ pub struct Login<'a> {
     scrt_store: ScrtStore,
     path: PathBuf,
 
-    password: InputField<'a>,
-    passphrase: InputField<'a>,
+    password: SecretInputField<'a>,
+    passphrase: SecretInputField<'a>,
 
     selected_field: Pf,
 
@@ -90,8 +91,8 @@ impl<'a> Login<'a> {
         Box::new(Login {
             path,
             scrt_store: ss,
-            password: InputField::new("Password", None, None),
-            passphrase: InputField::new("Phrase", None, None),
+            password: SecretInputField::new("Password", None, None),
+            passphrase: SecretInputField::new("Phrase", None, None),
 
             selected_field: Pf::Pass,
             error_msg: None,

@@ -14,7 +14,7 @@ use scrt::ppgen::generate_pass_phrase;
 use std::env;
 use std::path::PathBuf;
 
-use crate::components::input_field::InputField;
+use crate::components::input_field::{InputField, SecretInputField};
 
 use crossterm::event::{Event, KeyCode, KeyEvent};
 
@@ -34,8 +34,8 @@ enum Pf {
 pub struct CreateNewStore<'a> {
     path: FilePicker<'a>,
     store_name: InputField<'a>,
-    password: InputField<'a>,
-    passphrase: InputField<'a>,
+    password: SecretInputField<'a>,
+    passphrase: SecretInputField<'a>,
 
     selected_field: Pf,
     error_msgs: Option<Vec<String>>,
@@ -147,9 +147,9 @@ impl<'a> CreateNewStore<'a> {
         let pwd = env::current_dir().unwrap();
 
         let path = FilePicker::new("Folder", pwd, PickerMode::DirsOnly);
-        let password = InputField::new("Password", None, Some("Very secure password"));
+        let password = SecretInputField::new("Password", None, Some("Very secure password"));
         let store_name = InputField::new("Store Name", None, Some("MyScrtStore"));
-        let passphrase = InputField::new("Pass Phrase", None, Some("foo bar car ..."));
+        let passphrase = SecretInputField::new("Pass Phrase", None, Some("foo bar car ..."));
 
         Box::new(Self {
             path,
